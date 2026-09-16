@@ -19,11 +19,21 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Build release binary
         run: cargo build --release
+      # Unique per-platform names prevent asset collisions on the release
+      # (and skip the Windows .pdb debug symbols).
+      - name: Stage binary with a platform-specific name
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            Windows) cp target/release/blackjack.exe target/release/blackjack-windows-x64.exe ;;
+            macOS)   cp target/release/blackjack     target/release/blackjack-macos-arm64 ;;
+            Linux)   cp target/release/blackjack     target/release/blackjack-linux-x64 ;;
+          esac
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: blackjack-${{ matrix.os }}
-          path: target/release/blackjack*
+          path: target/release/blackjack-*
 
   release:
     name: Attach binaries to the GitHub release
@@ -40,6 +50,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/blackjack-*/blackjack*
+            artifacts/blackjack-*/blackjack-*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
