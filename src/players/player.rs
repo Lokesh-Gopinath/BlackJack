@@ -50,8 +50,9 @@ pub struct Player {
     pub insurance_bet: u32,
     /// Whether the player gave this hand up.
     pub has_surrendered: bool,
-    /// Win/loss score: +1 per win, −1 per loss, never below 0.
-    pub points: u32,
+    /// Prestige: +1 each time this player's winning hand helps wipe out
+    /// the dealer. Prestige never decreases.
+    pub prestige: u32,
 }
 
 impl Player {
@@ -65,7 +66,7 @@ impl Player {
             bet: 0,
             insurance_bet: 0,
             has_surrendered: false,
-            points: 0,
+            prestige: 0,
         }
     }
 
@@ -97,16 +98,13 @@ impl Player {
     }
 
     /// Wins the hand at even money: stake back plus the dealer's match.
-    /// Counts as +1 point.
     pub fn win(&mut self) {
         self.coins += self.bet * 2;
-        self.add_point();
     }
 
-    /// Wins with a natural blackjack, paid 3:2. Counts as +1 point.
+    /// Wins with a natural blackjack, paid 3:2.
     pub fn win_blackjack(&mut self) {
         self.coins += self.bet + self.bet * 3 / 2;
-        self.add_point();
     }
 
     /// Cashes out a winning insurance bet, paid 2:1 (stake back plus twice
@@ -121,39 +119,25 @@ impl Player {
         self.insurance_bet = 0;
     }
 
-    /// Ties the hand: the stake is returned and no points change.
+    /// Ties the hand: the stake is returned.
     pub fn push(&mut self) {
         self.coins += self.bet;
     }
 
-    /// Surrenders the hand: half the stake back and a lost point.
+    /// Surrenders the hand: half the stake back.
     pub fn surrender(&mut self) {
         self.has_surrendered = true;
         self.coins += self.bet / 2;
-        self.subtract_point();
     }
 
-    /// Loses the hand (the stake is already deducted). Counts as −1 point.
-    pub fn lose(&mut self) {
-        self.subtract_point();
+    /// Adds one prestige point. Awarded only when this player's winning
+    /// hand helps wipe out the dealer; prestige never decreases.
+    pub fn add_prestige(&mut self) {
+        self.prestige += 1;
     }
 
-    /// Adds one point.
-    pub fn add_point(&mut self) {
-        self.points += 1;
-    }
-
-    /// Removes one point, never dropping below zero.
-    pub fn subtract_point(&mut self) {
-        self.points = self.points.saturating_sub(1);
-    }
-
-    /// Sets the points back to zero.
-    pub fn reset_points(&mut self) {
-        self.points = 0;
-    }
-
-    /// Replaces the player's coins (used by the game reset logic).
+    /// Replaces the player's coins. Only the dealer's replenishment uses
+    /// this; player bankrolls persist across dealer resets.
     pub fn reset_coins(&mut self, coins: u32) {
         self.coins = coins;
     }
@@ -174,5 +158,60 @@ impl Player {
     /// A human-readable description of the hand, e.g. `A♠, K♥ = 21`.
     pub fn get_hand_description(&self) -> String {
         format!("{}", self.hand)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn prestige_only_changes_via_add_prestige() {
+        let mut player = Player::new("Tester", PlayerType::Human, PLAYER_START_COINS);
+        assert_eq!(player.prestige, 0);
+
+        // Normal outcomes never touch prestige (no +1 for wins, no −1 for losses).
+        player.place_bet(10).expect("affordable");
+        player.win();
+        assert_eq!(player.prestige, 0);
+
+        player.clear_hand();
+        player.place_bet(10).expect("affordable");
+        player.win_blackjack();
+        assert_eq!(player.prestige, 0);
+
+        player.clear_hand();
+        player.place_bet(10).expect("affordable");
+        player.push();
+        assert_eq!(player.prestige, 0);
+
+        player.clear_hand();
+        player.place_bet(10).expect("affordable");
+        player.surrender();
+        assert_eq!(player.prestige, 0);
+
+        // Only an explicit dealer-wipeout award moves prestige.
+        player.add_prestige();
+        player.add_prestige();
+        assert_eq!(player.prestige, 2);
+
+        player.clear_hand();
+        player.place_bet(10).expect("affordable");
+        player.win();
+        assert_eq!(player.prestige, 2);
+    }
+
+    #[test]
+    fn coin_flows_for_bets_and_payouts() {
+        let mut player = Player::new("Tester", PlayerType::Human, 100);
+        player.place_bet(50).expect("affordable");
+        assert_eq!(player.coins, 50);
+        player.win(); // stake back + the dealer's match
+        assert_eq!(player.coins, 150);
+
+        player.clear_hand();
+        player.place_bet(10).expect("affordable");
+        player.surrender(); // half the stake back (140 + 5)
+        assert_eq!(player.coins, 145);
     }
 }

@@ -11,11 +11,12 @@ A fully-featured Blackjack game built in Rust with a CLI interface.
 - Bots automatically match your bet (all-in if short on coins)
 - Insurance and Surrender options
 - Average AI for bots (basic-strategy style decisions)
-- Point system: Win = +1, Lose = -1 (min 0)
+- **Bankroll persistence**: player coins carry over untouched when the dealer goes bankrupt
+- **Prestige points**: +1 prestige for every player whose winning hand helps wipe out the dealer; prestige never decreases
+- **Dynamic dealer scaling**: the bankrupt dealer respawns with 5× your current coins (e.g. 325 coins → 1625)
 - Game ends when you can no longer afford the minimum bet (10 coins)
-- Auto-reset with the dealer getting 5x your coins when the dealer runs out
 - Quit any time: type `q` at the bet, insurance, or turn prompt — the session
-  ends and shows your net winnings (coins kept vs. coins granted)
+  ends and shows your net winnings (coins kept vs. the initial 100-coin bankroll)
 
 ## Rules
 

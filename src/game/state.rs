@@ -4,14 +4,14 @@ use crate::models::deck::Deck;
 use crate::players::bot::BotPlayer;
 use crate::players::dealer::Dealer;
 use crate::players::human::HumanPlayer;
-use crate::players::player::{MIN_BET, PLAYER_START_COINS};
+use crate::players::player::MIN_BET;
 
 /// Reshuffle a fresh deck when fewer cards than this remain.
 pub const RESHUFFLE_THRESHOLD: usize = 15;
 /// How many bots sit at the table.
 pub const BOT_COUNT: usize = 2;
-/// On a dealer reset the dealer receives this multiple of the player's
-/// fresh coins (5 × 100 = 500).
+/// When the dealer goes bankrupt it is replenished with this multiple of
+/// the human's carried-over coins (e.g. 325 coins → 1625).
 pub const DEALER_RESET_MULTIPLIER: u32 = 5;
 
 /// Everything that persists across the rounds of a blackjack session.
@@ -27,8 +27,9 @@ pub struct BlackjackGame {
     pub bots: Vec<BotPlayer>,
     /// Number of rounds played in this session.
     pub round_number: u32,
-    /// Net coins won by the human this session: every round's coin delta
-    /// plus reset top-ups, so it always equals coins kept minus coins granted.
+    /// Net coins won by the human this session relative to the initial
+    /// 100-coin bankroll (bankrolls persist across dealer resets, so no
+    /// coins are ever granted after the session starts).
     pub winnings: i64,
     /// Set when the human quits the session early.
     pub quit_requested: bool,
@@ -79,19 +80,40 @@ impl BlackjackGame {
         self.dealer.player.coins < MIN_BET
     }
 
-    /// Resets the table after the dealer runs dry: everyone returns to
-    /// their starting coins, the dealer receives 5× the player's fresh
-    /// coins, and the scoreboard is cleared.
+    /// Refills the dealer's bankroll after it goes bankrupt. Player
+    /// bankrolls and prestige persist untouched; the dealer receives
+    /// 5× the human's carried-over coins.
+    ///
+    /// Never called while the human is broke: the game-over check runs
+    /// first, so the dealer always respawns against a funded player.
     pub fn reset_game(&mut self) {
-        // The coin top-up counts toward the session's net winnings.
-        self.winnings += PLAYER_START_COINS as i64 - self.human.player.coins as i64;
-        self.human.player.reset_coins(PLAYER_START_COINS);
-        self.human.player.reset_points();
-        self.dealer.player.reset_coins(PLAYER_START_COINS * DEALER_RESET_MULTIPLIER);
-        self.dealer.player.reset_points();
-        for bot in &mut self.bots {
-            bot.player.reset_coins(PLAYER_START_COINS);
-            bot.player.reset_points();
-        }
+        let dealer_coins = self.human.player.coins * DEALER_RESET_MULTIPLIER;
+        self.dealer.player.reset_coins(dealer_coins);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dealer_reset_scales_with_carried_over_bankrolls() {
+        let mut game = BlackjackGame::new("Tester");
+        game.human.player.coins = 325;
+        game.bots[0].player.coins = 40;
+        game.bots[1].player.coins = 0;
+        game.human.player.add_prestige();
+        game.dealer.player.coins = 0; // dealer just went bankrupt
+
+        game.reset_game();
+
+        // Player bankrolls carry over untouched...
+        assert_eq!(game.human.player.coins, 325);
+        assert_eq!(game.bots[0].player.coins, 40);
+        assert_eq!(game.bots[1].player.coins, 0);
+        // ...and prestige persists...
+        assert_eq!(game.human.player.prestige, 1);
+        // ...while the dealer respawns with 5× the human's carried-over coins.
+        assert_eq!(game.dealer.player.coins, 325 * DEALER_RESET_MULTIPLIER);
     }
 }

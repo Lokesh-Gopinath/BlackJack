@@ -1,6 +1,6 @@
 [package]
 name = "blackjack"
-version = "0.1.0"
+version = "1.1.0"
 edition = "2021"
 description = "A fully-featured CLI Blackjack game written in Rust"
 license = "MIT"

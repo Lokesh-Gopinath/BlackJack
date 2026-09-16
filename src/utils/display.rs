@@ -53,9 +53,9 @@ pub fn print_round_header(game: &BlackjackGame) {
     println!();
 }
 
-/// Prints every participant's coins and points.
+/// Prints every participant's coins and prestige.
 pub fn print_game_state(game: &BlackjackGame) {
-    println!(" {:<14}{:>7}{:>8}", "Player", "Coins", "Points");
+    println!(" {:<14}{:>7}{:>8}", "Player", "Coins", "Prestige");
     print_stats(&game.human.player);
     for bot in &game.bots {
         print_stats(&bot.player);
@@ -63,9 +63,9 @@ pub fn print_game_state(game: &BlackjackGame) {
     print_stats(&game.dealer.player);
 }
 
-/// Prints one participant's coins and points row.
+/// Prints one participant's coins and prestige row.
 fn print_stats(player: &Player) {
-    println!(" {:<14}{:>7}{:>8}", player.name, player.coins, player.points);
+    println!(" {:<14}{:>7}{:>8}", player.name, player.coins, player.prestige);
 }
 
 /// Announces a placed bet.
@@ -212,6 +212,14 @@ pub fn print_surrender(player: &Player) {
 pub fn print_results_header() {
     println!();
     print_header("RESULTS");
+}
+
+/// Announces the prestige earned for helping bankrupt the dealer.
+pub fn print_prestige_award(names: &[String]) {
+    if names.is_empty() {
+        return;
+    }
+    println!(" ★ The dealer is wiped out! Prestige +1 for: {}.", names.join(", "));
 }
 
 /// A player wins the hand at even money.

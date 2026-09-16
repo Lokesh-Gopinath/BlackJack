@@ -272,18 +272,20 @@ fn settle_against_dealer_blackjack(player: &mut Player) -> i64 {
         0
     } else {
         let bet = player.bet;
-        player.lose();
         display::print_loss_with(player, "to the dealer's blackjack");
         bet as i64
     }
 }
 
-/// Pays out every hand against the dealer's final hand.
+/// Pays out every hand against the dealer's final hand. If the round drains
+/// the dealer's bankroll below the minimum bet, every player with a winning
+/// hand earns +1 prestige.
 fn settle_round(game: &mut BlackjackGame) {
     display::print_results_header();
 
     let dealer_hand = game.dealer.player.hand.clone();
-    let mut dealer_delta = settle_hand(&mut game.human.player, &dealer_hand);
+    let (human_delta, human_won) = settle_hand(&mut game.human.player, &dealer_hand);
+    let mut dealer_delta = human_delta;
 
     // Any unclaimed insurance stake (dealer has no blackjack) goes to the house.
     if game.human.player.has_insurance() {
@@ -292,26 +294,48 @@ fn settle_round(game: &mut BlackjackGame) {
         game.human.player.lose_insurance();
     }
 
+    let mut bot_won = Vec::with_capacity(game.bots.len());
     for bot in &mut game.bots {
-        dealer_delta += settle_hand(&mut bot.player, &dealer_hand);
+        let (delta, won) = settle_hand(&mut bot.player, &dealer_hand);
+        dealer_delta += delta;
+        bot_won.push(won);
     }
 
     apply_dealer_delta(game, dealer_delta);
+
+    // The hands that drained the dealer's last coins earn prestige.
+    if game.dealer_is_broke() {
+        let mut winners: Vec<String> = Vec::new();
+        if human_won {
+            game.human.player.add_prestige();
+            winners.push(game.human.player.name.clone());
+        }
+        for (bot, won) in game.bots.iter_mut().zip(bot_won) {
+            if won {
+                bot.player.add_prestige();
+                winners.push(bot.player.name.clone());
+            }
+        }
+        display::print_prestige_award(&winners);
+    }
+
     println!();
     display::print_game_state(game);
 }
 
 /// Resolves one player's hand and returns the dealer's coin delta
-/// (negative = the dealer pays, positive = the dealer collects).
-fn settle_hand(player: &mut Player, dealer_hand: &Hand) -> i64 {
+/// (negative = the dealer pays, positive = the dealer collects) together
+/// with whether the hand won. Winning hands earn prestige if the dealer
+/// goes bankrupt this round.
+fn settle_hand(player: &mut Player, dealer_hand: &Hand) -> (i64, bool) {
     if player.bet == 0 {
-        return 0;
+        return (0, false);
     }
     if player.has_surrendered {
         let bet = player.bet;
         player.surrender();
         display::print_surrender_result(player, bet);
-        return (bet / 2) as i64;
+        return ((bet / 2) as i64, false);
     }
 
     let bet = player.bet;
@@ -319,22 +343,21 @@ fn settle_hand(player: &mut Player, dealer_hand: &Hand) -> i64 {
         RoundOutcome::PlayerBlackjack => {
             player.win_blackjack();
             display::print_blackjack_win(player);
-            -(bet as i64 * 3 / 2)
+            (-(bet as i64 * 3 / 2), true)
         }
         RoundOutcome::PlayerWin => {
             player.win();
             display::print_win(player);
-            -(bet as i64)
+            (-(bet as i64), true)
         }
         RoundOutcome::Push => {
             player.push();
             display::print_push(player);
-            0
+            (0, false)
         }
         RoundOutcome::DealerWin => {
-            player.lose();
             display::print_loss(player);
-            bet as i64
+            (bet as i64, false)
         }
     }
 }
