@@ -46,6 +46,11 @@ cargo run
 blackjack/
 ├── Cargo.toml
 ├── README.md
+├── build.rs             # Windows icon embedding (embed-resource)
+├── icon.rc              # Windows resource script (references the icon)
+├── assets/
+│   └── images/
+│       └── BlackJack.ico
 └── src/
     ├── main.rs          # Entry point, CLI handling
     ├── lib.rs           # Module exports
@@ -56,7 +61,7 @@ blackjack/
     │   └── hand.rs      # Hand struct and methods
     ├── players/
     │   ├── mod.rs       # Player module exports
-    │   ├── player.rs    # Player struct, types, and point/bet bookkeeping
+    │   ├── player.rs    # Player struct, types, and bet/prestige bookkeeping
     │   ├── human.rs     # HumanPlayer (CLI prompts)
     │   ├── bot.rs       # BotPlayer (average AI)
     │   └── dealer.rs    # Dealer (house turn logic)
@@ -72,6 +77,11 @@ blackjack/
 
 ## Notes
 
+- On Windows, `blackjack.exe` carries the custom card icon from
+  `assets/images/BlackJack.ico`, embedded at build time via `build.rs` +
+  `embed-resource` (visible in File Explorer, the taskbar, and Alt+Tab).
+  Linux/macOS builds are unaffected. If the icon doesn't show up after
+  replacing the .ico, rebuild with `cargo clean && cargo build --release`.
 - Card suits are printed as Unicode symbols (♥ ♦ ♣ ♠). If your console shows
   garbled characters, switch it to UTF-8 (e.g. `chcp 65001` on Windows).
 

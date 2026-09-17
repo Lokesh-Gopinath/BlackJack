@@ -1,9 +1,22 @@
 [package]
 name = "blackjack"
-version = "1.1.0"
+version = "1.1.1"
 edition = "2021"
 description = "A fully-featured CLI Blackjack game written in Rust"
 license = "MIT"
+build = "build.rs"
+
+# Metadata consumed by bundlers such as `cargo bundle`; the icon itself is
+# embedded into the Windows binary by build.rs + embed-resource.
+[package.metadata.windows]
+icon = "assets/images/BlackJack.ico"
+
+# Kept platform-agnostic (not [target.'cfg(windows)'.build-dependencies]):
+# build scripts are compiled against the HOST, so a cfg(windows)-gated
+# dependency would break Linux/macOS builds of build.rs. The runtime guard
+# in build.rs decides whether resources are actually compiled.
+[build-dependencies]
+embed-resource = "2.4"
 
 [dependencies]
 rand = "0.8"
